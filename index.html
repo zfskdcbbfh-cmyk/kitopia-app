@@ -15,7 +15,6 @@
             z-index: 1000; left: 50%; transform: translateX(-50%); bottom: 30px; font-weight: bold;
         }
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        /* 注文番号通知用オーバーレイ */
         #number-overlay {
             display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9);
             z-index: 2000; flex-direction: column; align-items: center; justify-content: center; color: white;
@@ -25,16 +24,208 @@
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
-    <!-- 注文番号表示用オーバーレイ -->
     <div id="number-overlay" onclick="this.style.display='none'">
-        <div class="text-2xl font-bold mb-4">注文を受け付けました</div>
-        <div class="text-sm opacity-70 mb-2 font-bold uppercase tracking-widest text-indigo-400">Order Number</div>
+        <div class="text-2xl font-bold mb-4">注文完了</div>
+        <div class="text-sm opacity-70 mb-2 font-bold uppercase text-indigo-400">Order Number</div>
         <div id="display-order-id" class="text-[10rem] font-black italic leading-none mb-8">#--</div>
-        <div class="bg-white/10 px-8 py-3 rounded-full text-sm font-bold backdrop-blur-sm">画面をタップして閉じる</div>
+        <div class="bg-white/10 px-8 py-3 rounded-full text-sm font-bold backdrop-blur-sm text-white">画面をタップして閉じる</div>
     </div>
 
     <div id="toast"></div>
     <nav class="bg-indigo-900 text-white shadow-xl sticky top-0 z-50">
+        <div class="flex justify-around max-w-4xl mx-auto font-bold text-sm">
+            <button onclick="switchMode('cashier')" class="px-4 py-4">レジ</button>
+            <button onclick="switchMode('kitchen')" class="px-4 py-4 border-l border-indigo-800">キッチン</button>
+            <button onclick="switchMode('history')" class="px-4 py-4 border-l border-indigo-800">履歴</button>
+            <button onclick="switchMode('admin')" class="px-4 py-4 border-l border-indigo-800">設定</button>
+        </div>
+    </nav>
+    <main class="max-w-4xl mx-auto p-4">
+        <!-- レジセクション -->
+        <section id="cashier" class="mode-panel">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="md:col-span-2 space-y-6">
+                    <h2 class="font-bold text-gray-400 text-xs tracking-widest uppercase">Select Menu</h2>
+                    <div id="menu-list" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+                    <h2 class="font-bold text-gray-400 text-xs tracking-widest uppercase border-t pt-4">Toppings</h2>
+                    <div id="topping-list" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div class="bg-white p-5 rounded-3xl shadow-2xl border border-indigo-50 h-fit sticky top-24">
+                    <h2 class="text-xl font-black mb-4 border-b pb-2 text-indigo-900 italic text-center">CART</h2>
+                    <input type="text" id="staff-name" class="w-full p-3 bg-gray-50 border rounded-xl mb-4 text-sm outline-none text-black font-bold" placeholder="担当者名">
+                    <div id="cart-display" class="space-y-2 mb-6 min-h-[80px] text-sm text-black font-medium"></div>
+                    <input type="text" id="order-memo" class="w-full p-3 border rounded-xl text-sm mb-4 text-black" placeholder="備考・カスタム">
+                    <div class="flex justify-between items-center border-t pt-4">
+                        <span class="text-gray-400 font-bold">Total</span>
+                        <span id="cart-total" class="text-4xl font-black text-indigo-600">¥0</span>
+                    </div>
+                    <button onclick="submitOrder()" class="w-full mt-6 bg-indigo-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">確定・送信</button>
+                    <button onclick="clearCart(true)" class="w-full mt-3 text-gray-400 text-xs font-bold hover:text-red-400 transition-colors">カートを空にする</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- キッチンセクション -->
+        <section id="kitchen" class="mode-panel hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-black italic uppercase text-black">Kitchen Queue</h2>
+                <span id="queue-count" class="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">0件</span>
+            </div>
+            <div id="order-queue" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
+        <!-- 履歴セクション -->
+        <section id="history" class="mode-panel hidden text-black">
+            <h2 class="text-xl font-bold mb-4 text-green-700">最近の提供済み注文</h2>
+            <div id="completed-list" class="space-y-2"></div>
+        </section>
+
+        <!-- 設定セクション -->
+        <section id="admin" class="mode-panel hidden text-black">
+            <div class="bg-white p-5 rounded-2xl shadow border mb-6">
+                <h2 class="font-bold mb-3 text-indigo-600 text-sm">分析連携 (Googleスプレッドシート)</h2>
+                <input type="text" id="gas-url" placeholder="GASのURL" class="w-full p-3 border rounded-xl text-xs bg-gray-50 mb-3 text-black font-bold">
+                <button onclick="saveSettings()" class="w-full bg-indigo-100 text-indigo-700 py-3 rounded-xl font-bold text-sm">設定を全員に同期する</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-xl shadow border">
+                    <h2 class="font-bold mb-2 text-xs border-b pb-1">メニュー編集・並び替え</h2>
+                    <div id="menu-admin-list" class="space-y-1 mb-4 max-h-48 overflow-y-auto"></div>
+                    <div class="bg-gray-50 p-2 rounded-lg border-2 border-dashed border-gray-200">
+                        <input type="text" id="new-menu-name" placeholder="商品名" class="w-full p-2 border rounded mb-2 text-xs">
+                        <div class="flex gap-2 mb-2">
+                            <input type="number" id="new-menu-price" placeholder="価格" class="flex-1 p-2 border rounded text-xs">
+                            <input type="color" id="new-menu-color" value="#6366f1" class="w-8 h-8 border rounded cursor-pointer">
+                        </div>
+                        <button onclick="addMenu()" class="w-full bg-indigo-600 text-white py-2 rounded font-bold text-xs">新規登録</button>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow border">
+                    <h2 class="font-bold mb-2 text-xs text-green-600 border-b pb-1">トッピング編集・並び替え</h2>
+                    <div id="topping-admin-list" class="space-y-1 mb-4 max-h-48 overflow-y-auto"></div>
+                    <div class="bg-gray-50 p-2 rounded-lg border-2 border-dashed border-gray-200">
+                        <input type="text" id="new-topping-name" placeholder="トッピング名" class="w-full p-2 border rounded mb-2 text-xs">
+                        <input type="number" id="new-topping-price" placeholder="価格" class="w-full p-2 border rounded mb-2 text-xs">
+                        <button onclick="addToppingMaster()" class="w-full bg-green-600 text-white py-2 rounded font-bold text-xs">新規登録</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 p-4 bg-red-50 rounded-xl border border-red-200 text-center">
+                <button onclick="clearAllData()" class="text-red-600 font-bold text-xs underline">全データを完全に初期化</button>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBCEAZEtgA6NPf9I2H1BK-2QLwuDj3VeUs",
+            authDomain: "kitppiaapp2.firebaseapp.com",
+            databaseURL: "https://kitppiaapp2-default-rtdb.firebaseio.com",
+            projectId: "kitppiaapp2",
+            storageBucket: "kitppiaapp2.firebasestorage.app",
+            messagingSenderId: "753995869602",
+            appId: "1:753995869602:web:6dc63029c621c4f01616fb"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let menuData = [], toppingData = [], orderData = [], gasUrl = "";
+        let cartItems = [], cartToppings = [];
+
+        db.ref('settings/gasUrl').on('value', snap => {
+            gasUrl = snap.val() || "";
+            if (document.getElementById('gas-url')) document.getElementById('gas-url').value = gasUrl;
+        });
+        db.ref('menus').on('value', snap => { menuData = snap.val() || []; renderAll(); });
+        db.ref('toppings').on('value', snap => { toppingData = snap.val() || []; renderAll(); });
+        db.ref('orders').on('value', snap => {
+            const val = snap.val() || {};
+            orderData = Object.keys(val).map(k => ({ ...val[k], firebaseKey: k }));
+            renderAll();
+        });
+
+        function switchMode(mode) {
+            document.querySelectorAll('.mode-panel').forEach(p => p.classList.add('hidden'));
+            document.getElementById(mode).classList.remove('hidden');
+        }
+        function showToast(msg) {
+            const t = document.getElementById("toast"); t.innerText = msg;
+            t.className = "show"; setTimeout(() => t.className = "", 3000);
+        }
+        function saveSettings() {
+            const url = document.getElementById('gas-url').value;
+            db.ref('settings/gasUrl').set(url).then(() => showToast("同期完了"));
+        }
+        function addMenu() {
+            const n = document.getElementById('new-menu-name').value, p = parseInt(document.getElementById('new-menu-price').value), c = document.getElementById('new-menu-color').value;
+            if (n && p) { menuData.push({ id: Date.now(), name: n, price: p, color: c }); db.ref('menus').set(menuData); document.getElementById('new-menu-name').value = ""; }
+        }
+        function addToppingMaster() {
+            const n = document.getElementById('new-topping-name').value, p = parseInt(document.getElementById('new-topping-price').value) || 0;
+            if (n) { toppingData.push({ id: Date.now(), name: n, price: p }); db.ref('toppings').set(toppingData); document.getElementById('new-topping-name').value = ""; }
+        }
+        function deleteItem(type, index) {
+            if(!confirm("削除しますか？")) return;
+            const target = type === 'menu' ? menuData : toppingData;
+            target.splice(index, 1);
+            db.ref(type + 's').set(target);
+        }
+        function moveItem(type, index, dir) {
+            const list = type === 'menu' ? menuData : toppingData;
+            if(index + dir < 0 || index + dir >= list.length) return;
+            const item = list.splice(index, 1)[0];
+            list.splice(index + dir, 0, item);
+            db.ref(type + 's').set(list);
+        }
+        function clearCart(showMsg = false) {
+            cartItems = []; cartToppings = [];
+            document.getElementById('order-memo').value = "";
+            renderAll();
+            if(showMsg) showToast("カートを空にしました");
+        }
+        function submitOrder() {
+            if (cartItems.length === 0) return;
+            const tText = cartToppings.map(t => t.name).join(", ");
+            const nextId = orderData.length + 1;
+            const order = {
+                id: nextId,
+                items: cartItems.map(i => i.name).join(", "),
+                topping: tText, toppings: tText, memo: document.getElementById('order-memo').value || "",
+                staff: document.getElementById('staff-name').value || "未指定",
+                total: cartItems.reduce((s,i)=>s+i.price,0) + cartToppings.reduce((s,t)=>s+t.price,0),
+                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+                completed: false
+            };
+            db.ref('orders').push(order);
+            if(gasUrl) fetch(gasUrl, {method: "POST", mode: "no-cors", body: JSON.stringify(order)});
+            
+            document.getElementById('display-order-id').innerText = "#" + nextId;
+            document.getElementById('number-overlay').style.display = 'flex';
+            clearCart(false);
+        }
+        function toggleStatus(key) {
+            const o = orderData.find(x => x.firebaseKey === key);
+            db.ref('orders/' + key).update({ completed: !o.completed });
+        }
+        function clearAllData() {
+            if (confirm("全データをリセットしますか？")) { db.ref('/').remove().then(() => location.reload()); }
+        }
+        function renderAll() {
+            document.getElementById('menu-list').innerHTML = menuData.map(m => `<button onclick='cartItems.push(${JSON.stringify(m)});renderAll();' style="background-color: ${m.color}" class="p-4 rounded-2xl shadow-sm font-bold text-black h-24 text-sm">${m.name}<br>¥${m.price}</button>`).join('');
+            document.getElementById('topping-list').innerHTML = toppingData.map(t => `<button onclick='cartToppings.push(${JSON.stringify(t)});renderAll();' class="px-4 py-2 bg-white border rounded-full text-xs font-bold text-black shadow-sm mb-1">+ ${t.name}</button>`).join('');
+            const total = cartItems.reduce((s,i)=>s+i.price,0) + cartToppings.reduce((s,t)=>s+t.price,0);
+            document.getElementById('cart-total').innerText = `¥${total.toLocaleString()}`;
+            document.getElementById('cart-display').innerHTML = cartItems.map(i => `<div class="flex justify-between font-bold"><span>${i.name}</span><span>¥${i.price}</span></div>`).join('') + cartToppings.map(t => `<div class="text-indigo-500 italic text-[11px]">+ ${t.name}</div>`).join('');
+            const queue = orderData.filter(o => !o.completed);
+            document.getElementById('queue-count').innerText = `${queue.length}件`;
+            document.getElementById('order-queue').innerHTML = queue.map(o => `<div class="bg-white p-6 rounded-3xl shadow-xl border-l-[12px] border-indigo-600 mb-4 text-black"><div class="flex justify-between items-start mb-1"><span class="text-5xl font-black italic text-indigo-900">#${o.id}</span></div><div class="text-2xl font-black">${o.items}</div><div class="text-indigo-600 font-bold text-sm">${(o.topping || o.toppings) ? '+ ' + (o.topping || o.toppings) : ''}</div>${o.memo ? `<div class="text-gray-500 text-xs mt-1 bg-gray-50 p-1 rounded italic">memo: ${o.memo}</div>` : ''}<button onclick="toggleStatus('${o.firebaseKey}')" class="w-full bg-gray-900 text-white py-5 rounded-2xl font-black mt-4">提供完了</button></div>`).join('');
+            document.getElementById('completed-list').innerHTML = orderData.filter(o => o.completed).reverse().slice(0, 5).map(o => `<div class="bg-white p-3 rounded-xl border flex justify-between items-center text-xs mb-1 text-black font-medium"><span>#${o.id} ${o.items}</span><button onclick="toggleStatus('${o.firebaseKey}')" class="text-indigo-600 underline">戻す</button></div>`).join('');
+            document.getElementById('menu-admin-list').innerHTML = menuData.map((m, i) => `<div class="flex justify-between items-center bg-gray-50 p-1 px-2 rounded border text-[10px] mb-1 font-medium text-black"><span class="flex-1">${m.name} (¥${m.price})</span><div class="flex gap-1"><button onclick="moveItem('menu', ${i}, -1)" class="p-1 px-2 bg-gray-200 rounded">↑</button><button onclick="moveItem('menu', ${i}, 1)" class="p-1 px-2 bg-gray-200 rounded">↓</button><button onclick="deleteItem('menu', ${i})" class="p-1 px-2 bg-red-100 text-red-600 rounded">×</button></div></div>`).join('');
+            document.getElementById('topping-admin-list').innerHTML = toppingData.map((t, i) => `<div class="flex justify-between items-center bg-gray-50 p-1 px-2 rounded border text-[10px] mb-1 font-medium text-black"><span class="flex-1">${t.name}</span><div class="flex gap-1"><button onclick="moveItem('topping', ${i}, -1)" class="p-1 px-2 bg-gray-200 rounded">↑</button><button onclick="moveItem('topping', ${i}, 1)" class="p-1 px-2 bg-gray-200 rounded">↓</button><button onclick="deleteItem('topping', ${i})" class="p-1 px-2 bg-red-100 text-red-600 rounded">×</button></div></div>`).join('');
+        }
+        renderAll();
+    </script>
+</body>
+</html>    <nav class="bg-indigo-900 text-white shadow-xl sticky top-0 z-50">
         <div class="flex justify-around max-w-4xl mx-auto font-bold text-sm">
             <button onclick="switchMode('cashier')" class="px-4 py-4">レジ</button>
             <button onclick="switchMode('kitchen')" class="px-4 py-4 border-l border-indigo-800">キッチン</button>
