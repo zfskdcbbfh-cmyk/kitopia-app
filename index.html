@@ -1,231 +1,28 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>模擬店DX Pro - KITOPIA Ultra</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
-    <style>
-        .mode-panel.hidden { display: none; }
-        #toast {
-            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
-            text-align: center; border-radius: 50px; padding: 12px; position: fixed;
-            z-index: 100; left: 50%; transform: translateX(-50%); bottom: 30px; font-weight: bold;
-        }
-        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
-    </style>
-</head>
-<body class="bg-gray-100 font-sans text-gray-800">
+// --- 1. Firebaseから設定（GAS URL）を読み込む ---
+let gasUrl = "";
+db.ref('settings/gasUrl').on('value', snap => {
+    gasUrl = snap.val() || "";
+    const input = document.getElementById('gas-url');
+    if (input) input.value = gasUrl; // 設定画面の入力欄も自動更新
+});
 
-    <div id="toast"></div>
+// --- 2. 設定を保存する関数を追加 ---
+function saveSettings() {
+    const url = document.getElementById('gas-url').value;
+    db.ref('settings/gasUrl').set(url).then(() => {
+        showToast("スプレッドシートのURLを全員に同期しました");
+    });
+}
 
-    <nav class="bg-indigo-900 text-white shadow-xl sticky top-0 z-50">
-        <div class="flex justify-around max-w-4xl mx-auto font-bold text-sm">
-            <button onclick="switchMode('cashier')" class="px-4 py-4">レジ</button>
-            <button onclick="switchMode('kitchen')" class="px-4 py-4 border-l border-indigo-800">キッチン</button>
-            <button onclick="switchMode('history')" class="px-4 py-4 border-l border-indigo-800">履歴</button>
-            <button onclick="switchMode('admin')" class="px-4 py-4 border-l border-indigo-800">設定</button>
-        </div>
-    </nav>
+// --- 3. 注文送信時のロジックを修正 ---
+function submitOrder() {
+    if (cartItems.length === 0) return;
+    
+    // 省略（orderオブジェクト作成など）...
 
-    <main class="max-w-4xl mx-auto p-4">
-        <section id="cashier" class="mode-panel">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="md:col-span-2 space-y-6">
-                    <h2 class="font-bold text-gray-400 text-xs tracking-widest uppercase">Select Menu</h2>
-                    <div id="menu-list" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
-                    <h2 class="font-bold text-gray-400 text-xs tracking-widest uppercase border-t pt-4">Toppings</h2>
-                    <div id="topping-list" class="flex flex-wrap gap-2"></div>
-                </div>
-                <div class="bg-white p-5 rounded-3xl shadow-2xl border border-indigo-50 h-fit sticky top-24">
-                    <h2 class="text-xl font-black mb-4 border-b pb-2 text-indigo-900 italic text-center">CART</h2>
-                    <input type="text" id="staff-name" class="w-full p-3 bg-gray-50 border rounded-xl mb-4 text-sm outline-none" placeholder="担当者名">
-                    <div id="cart-display" class="space-y-2 mb-6 min-h-[80px] text-sm"></div>
-                    <input type="text" id="order-memo" class="w-full p-3 border rounded-xl text-sm mb-4" placeholder="備考・カスタム">
-                    <div class="flex justify-between items-center border-t pt-4">
-                        <span class="text-gray-400 font-bold">Total</span>
-                        <span id="cart-total" class="text-4xl font-black text-indigo-600">¥0</span>
-                    </div>
-                    <button onclick="submitOrder()" class="w-full mt-6 bg-indigo-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">確定・送信</button>
-                    <button onclick="clearCart()" class="w-full mt-3 text-gray-400 text-xs font-bold">カートを空にする</button>
-                </div>
-            </div>
-        </section>
-
-        <section id="kitchen" class="mode-panel hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-black italic uppercase">Kitchen Queue</h2>
-                <span id="queue-count" class="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold">0件</span>
-            </div>
-            <div id="order-queue" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-        </section>
-
-        <section id="history" class="mode-panel hidden">
-            <h2 class="text-xl font-bold mb-4 text-green-700">最近の提供済み注文</h2>
-            <div id="completed-list" class="space-y-2"></div>
-        </section>
-
-        <section id="admin" class="mode-panel hidden">
-            <div class="bg-white p-5 rounded-2xl shadow border mb-6">
-                <h2 class="font-bold mb-3 text-indigo-600">分析連携 (Googleスプレッドシート)</h2>
-                <input type="text" id="gas-url" placeholder="GASのURLを貼り付けてください" class="w-full p-3 border rounded-xl text-xs bg-gray-50">
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white p-6 rounded-2xl shadow border">
-                    <h2 class="font-bold mb-4 border-b pb-2">メニュー追加</h2>
-                    <div id="menu-admin-list" class="space-y-2 mb-6 max-h-40 overflow-y-auto"></div>
-                    <input type="text" id="new-menu-name" placeholder="商品名" class="w-full p-3 border rounded-xl mb-2">
-                    <div class="flex gap-2 mb-4">
-                        <input type="number" id="new-menu-price" placeholder="¥ 価格" class="flex-1 p-3 border rounded-xl">
-                        <input type="color" id="new-menu-color" value="#6366f1" class="w-12 h-12 border rounded-xl bg-white cursor-pointer">
-                    </div>
-                    <button onclick="addMenu()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">メニューに登録</button>
-                </div>
-                <div class="bg-white p-6 rounded-2xl shadow border">
-                    <h2 class="font-bold mb-4 border-b pb-2 text-green-600">トッピング追加</h2>
-                    <div id="topping-admin-list" class="space-y-2 mb-6 max-h-40 overflow-y-auto"></div>
-                    <input type="text" id="new-topping-name" placeholder="トッピング名" class="w-full p-3 border rounded-xl mb-2">
-                    <input type="number" id="new-topping-price" placeholder="¥ 価格" class="w-full p-3 border rounded-xl mb-4">
-                    <button onclick="addToppingMaster()" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold">トッピング登録</button>
-                </div>
-            </div>
-            <!-- ここにリセットエリアが自動挿入されます -->
-        </section>
-    </main>
-
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyBCEAZEtgA6NPf9I2H1BK-2QLwuDj3VeUs",
-            authDomain: "kitppiaapp2.firebaseapp.com",
-            databaseURL: "https://kitppiaapp2-default-rtdb.firebaseio.com",
-            projectId: "kitppiaapp2",
-            storageBucket: "kitppiaapp2.firebasestorage.app",
-            messagingSenderId: "753995869602",
-            appId: "1:753995869602:web:6dc63029c621c4f01616fb"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
-        let menuData = [], toppingData = [], orderData = [];
-        let cartItems = [], cartToppings = [];
-
-        db.ref('menus').on('value', snap => { menuData = snap.val() || []; renderAll(); });
-        db.ref('toppings').on('value', snap => { toppingData = snap.val() || []; renderAll(); });
-        db.ref('orders').on('value', snap => {
-            const val = snap.val() || {};
-            orderData = Object.keys(val).map(k => ({ ...val[k], firebaseKey: k }));
-            renderAll();
-        });
-
-        function switchMode(mode) {
-            document.querySelectorAll('.mode-panel').forEach(p => p.classList.add('hidden'));
-            document.getElementById(mode).classList.remove('hidden');
-        }
-
-        function showToast(msg) {
-            const t = document.getElementById("toast"); t.innerText = msg;
-            t.className = "show"; setTimeout(() => t.className = "", 3000);
-        }
-
-        function addMenu() {
-            const n = document.getElementById('new-menu-name').value, p = parseInt(document.getElementById('new-menu-price').value), c = document.getElementById('new-menu-color').value;
-            if (n && p) { menuData.push({ id: Date.now(), name: n, price: p, color: c }); db.ref('menus').set(menuData); document.getElementById('new-menu-name').value = ""; showToast("商品を登録しました"); }
-        }
-
-        function addToppingMaster() {
-            const n = document.getElementById('new-topping-name').value, p = parseInt(document.getElementById('new-topping-price').value) || 0;
-            if (n) { toppingData.push({ id: Date.now(), name: n, price: p }); db.ref('toppings').set(toppingData); document.getElementById('new-topping-name').value = ""; showToast("トッピングを登録しました"); }
-        }
-
-        function submitOrder() {
-            if (cartItems.length === 0) return;
-            const order = {
-                id: orderData.length + 1,
-                items_text: cartItems.map(i => i.name).join(", "),
-                toppings_text: cartToppings.map(t => t.name).join(", "),
-                staff: document.getElementById('staff-name').value || "未指定",
-                memo: document.getElementById('order-memo').value || "",
-                total: cartItems.reduce((s,i)=>s+i.price,0) + cartToppings.reduce((s,t)=>s+t.price,0),
-                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-                completed: false
-            };
-            db.ref('orders').push(order);
-            const gUrl = document.getElementById('gas-url').value;
-            if(gUrl) fetch(gUrl, {method: "POST", mode: "no-cors", body: JSON.stringify(order)});
-            cartItems = []; cartToppings = []; document.getElementById('order-memo').value = ""; showToast("注文送信完了");
-        }
-
-        function toggleStatus(key) {
-            const o = orderData.find(x => x.firebaseKey === key);
-            db.ref('orders/' + key).update({ completed: !o.completed });
-        }
-
-        function clearCart() { cartItems = []; cartToppings = []; renderAll(); }
-
-        function clearAllData() {
-            if (confirm("【警告】すべてのデータを削除します。本当によろしいですか？\n(メニュー設定も消えるため、再登録が必要になります)")) {
-                db.ref('/').remove().then(() => { showToast("全消去しました。再読み込みします。"); setTimeout(() => location.reload(), 1500); });
-            }
-        }
-
-        function renderAll() {
-            document.getElementById('menu-list').innerHTML = menuData.map(m => `
-                <button onclick='cartItems.push(${JSON.stringify(m)});renderAll();' style="background-color: ${m.color}" class="p-4 rounded-2xl shadow-sm font-bold text-white active:scale-95 transition h-24 text-sm">
-                    ${m.name}<br><span class="font-normal opacity-80 text-xs">¥${m.price}</span>
-                </button>
-            `).join('');
-
-            document.getElementById('topping-list').innerHTML = toppingData.map(t => `
-                <button onclick='cartToppings.push(${JSON.stringify(t)});renderAll();' class="px-4 py-2 bg-white border border-indigo-100 rounded-full text-xs font-bold active:bg-indigo-50 shadow-sm">
-                    + ${t.name}(¥${t.price})
-                </button>
-            `).join('');
-
-            const total = cartItems.reduce((s,i)=>s+i.price,0) + cartToppings.reduce((s,t)=>s+t.price,0);
-            document.getElementById('cart-total').innerText = `¥${total.toLocaleString()}`;
-            document.getElementById('cart-display').innerHTML = cartItems.map(i => `<div class="flex justify-between font-bold"><span>${i.name}</span><span>¥${i.price}</span></div>`).join('') + cartToppings.map(t => `<div class="text-indigo-500 italic text-[11px]">+ ${t.name}</div>`).join('');
-
-            const queue = orderData.filter(o => !o.completed);
-            document.getElementById('queue-count').innerText = `${queue.length}件`;
-            document.getElementById('order-queue').innerHTML = queue.map(o => `
-                <div class="bg-white p-6 rounded-3xl shadow-xl border-l-[12px] border-indigo-600">
-                    <div class="flex justify-between items-start mb-3">
-                        <span class="text-5xl font-black italic text-indigo-900">#${o.id}</span>
-                        <div class="text-right text-[10px] text-gray-400 font-bold">${o.time} / ${o.staff}</div>
-                    </div>
-                    <div class="text-2xl font-black mb-1">${o.items_text}</div>
-                    <div class="text-indigo-600 font-bold text-sm mb-4">${o.toppings_text}</div>
-                    ${o.memo ? `<div class="bg-amber-50 p-2 rounded-xl text-xs mb-4 border border-amber-100 text-amber-900">【メモ】 ${o.memo}</div>` : ''}
-                    <button onclick="toggleStatus('${o.firebaseKey}')" class="w-full bg-gray-900 text-white py-5 rounded-2xl font-black">提供完了</button>
-                </div>
-            `).join('');
-
-            const history = orderData.filter(o => o.completed).reverse().slice(0, 15);
-            document.getElementById('completed-list').innerHTML = history.map(o => `
-                <div class="bg-white p-4 rounded-2xl border flex justify-between items-center text-sm mb-2 opacity-70">
-                    <span class="font-bold">#${o.id} ${o.items_text}</span>
-                    <button onclick="toggleStatus('${o.firebaseKey}')" class="text-indigo-600 underline text-xs">戻す</button>
-                </div>
-            `).join('');
-
-            document.getElementById('menu-admin-list').innerHTML = menuData.map(m => `<div class="text-xs p-2 bg-gray-50 rounded border flex justify-between"><span>${m.name}</span><span>¥${m.price}</span></div>`).join('');
-            document.getElementById('topping-admin-list').innerHTML = toppingData.map(t => `<div class="text-xs p-2 bg-gray-50 rounded border flex justify-between"><span>${t.name}</span><span>¥${t.price}</span></div>`).join('');
-
-            const adminPanel = document.getElementById('admin');
-            if (!document.getElementById('danger-zone')) {
-                adminPanel.insertAdjacentHTML('beforeend', `
-                    <div id="danger-zone" class="mt-12 p-6 bg-red-50 rounded-3xl border-2 border-red-200">
-                        <h3 class="text-red-600 font-black mb-2 italic uppercase">Danger Zone</h3>
-                        <p class="text-[10px] text-red-400 mb-4 font-bold">※Firebase上の全データが消去されます。テスト終了時のみ使用してください。</p>
-                        <button onclick="clearAllData()" class="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">全データを初期化する</button>
-                    </div>`);
-            }
-        }
-        renderAll();
-    </script>
-</body>
-</html>
+    // ローカルの入力欄ではなく、Firebaseから同期された gasUrl を使用
+    if(gasUrl) {
+        fetch(gasUrl, {method: "POST", mode: "no-cors", body: JSON.stringify(order)});
+    }
+    // ...
+}
