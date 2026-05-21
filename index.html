@@ -3,46 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>模擬店DX Pro - KITOPIA Ultra</title>
+    <title>模擬店DX Pro - KITOPIA Ultra Safe</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
     <style>
         .mode-panel { display: none; }
         .mode-panel.active { display: block; }
+        .nav-button.active { background: rgb(67 56 202); }
         #toast {
-            visibility: hidden; min-width: 200px; background-color: #333; color: #fff;
-            text-align: center; border-radius: 50px; padding: 10px; position: fixed;
-            z-index: 1000; left: 50%; transform: translateX(-50%); bottom: 20px; font-weight: bold;
+            visibility: hidden;
+            min-width: 220px;
+            max-width: calc(100vw - 32px);
+            background-color: #222;
+            color: #fff;
+            text-align: center;
+            border-radius: 999px;
+            padding: 12px 16px;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 20px;
+            font-weight: 800;
+            font-size: 13px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.25);
         }
-        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        #toast.show { visibility: visible; animation: fadein .25s, fadeout .35s 2.65s; }
         #number-overlay {
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9);
-            z-index: 2000; flex-direction: column; align-items: center; justify-content: center; color: white;
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.92);
+            z-index: 2000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
         }
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 20px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 20px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 20px; opacity: 1; } }
+        @keyframes fadeout { from { bottom: 20px; opacity: 1; } to { bottom: 0; opacity: 0; } }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800">
-    <div id="number-overlay" onclick="this.style.display='none'">
+    <div id="number-overlay" role="button" tabindex="0" aria-label="受付番号を閉じる">
         <div class="text-xl font-bold mb-2 text-white">受付完了</div>
-        <div id="display-order-id" class="text-[12rem] font-black italic leading-none mb-6 text-white">#--</div>
+        <div id="display-order-id" class="text-[clamp(6rem,28vw,12rem)] font-black italic leading-none mb-6 text-white">#--</div>
         <div class="bg-white/10 px-8 py-3 rounded-full text-xs font-bold backdrop-blur-sm text-white">タップして閉じる</div>
     </div>
-    <div id="toast"></div>
+    <div id="toast" aria-live="polite"></div>
 
     <nav class="bg-indigo-900 text-white shadow-xl sticky top-0 z-50">
         <div class="flex justify-around max-w-4xl mx-auto font-bold text-xs sm:text-sm">
-            <button onclick="switchMode('cashier')" class="px-2 py-5 w-full text-center">レジ</button>
-            <button onclick="switchMode('kitchen')" class="px-2 py-5 w-full text-center border-l border-indigo-800">キッチン</button>
-            <button onclick="switchMode('history')" class="px-2 py-5 w-full text-center border-l border-indigo-800">履歴</button>
-            <button onclick="switchMode('admin')" class="px-2 py-5 w-full text-center border-l border-indigo-800">設定</button>
+            <button data-mode="cashier" class="nav-button active px-2 py-5 w-full text-center">レジ</button>
+            <button data-mode="kitchen" class="nav-button px-2 py-5 w-full text-center border-l border-indigo-800">キッチン</button>
+            <button data-mode="history" class="nav-button px-2 py-5 w-full text-center border-l border-indigo-800">履歴</button>
+            <button data-mode="admin" class="nav-button px-2 py-5 w-full text-center border-l border-indigo-800">設定</button>
         </div>
     </nav>
 
     <main class="max-w-4xl mx-auto p-4 pb-24">
-        <div id="cashier" class="mode-panel active">
+        <section id="cashier" class="mode-panel active">
             <div class="flex flex-col md:flex-row gap-6">
                 <div class="flex-1 space-y-6">
                     <h2 class="font-bold text-gray-400 text-[10px] tracking-widest uppercase italic">Menu List</h2>
@@ -50,67 +71,72 @@
                     <h2 class="font-bold text-gray-400 text-[10px] tracking-widest uppercase border-t pt-4 italic">Toppings</h2>
                     <div id="topping-list" class="flex flex-wrap gap-2"></div>
                 </div>
-                <div class="w-full md:w-80 bg-white p-5 rounded-3xl shadow-2xl border border-indigo-50 h-fit sticky top-24">
-                    <h2 class="text-xl font-black mb-4 border-b pb-2 text-indigo-900 italic text-center text-black">CART</h2>
-                    <input type="text" id="staff-name" class="w-full p-3 bg-gray-50 border rounded-xl mb-4 text-sm font-bold text-black" placeholder="担当者名">
+
+                <aside class="w-full md:w-80 bg-white p-5 rounded-3xl shadow-2xl border border-indigo-50 h-fit sticky top-24">
+                    <h2 class="text-xl font-black mb-4 border-b pb-2 text-indigo-900 italic text-center">CART</h2>
+                    <input type="text" id="staff-name" class="w-full p-3 bg-gray-50 border rounded-xl mb-4 text-sm font-bold text-black" placeholder="担当者名" autocomplete="off">
                     <div id="cart-display" class="space-y-2 mb-6 min-h-[80px] text-xs font-medium text-black"></div>
-                    <input type="text" id="order-memo" class="w-full p-3 border rounded-xl text-sm mb-4 text-black" placeholder="備考・カスタム">
+                    <input type="text" id="order-memo" class="w-full p-3 border rounded-xl text-sm mb-4 text-black" placeholder="備考・カスタム" autocomplete="off">
                     <div class="flex justify-between items-center border-t pt-4 text-black">
                         <span class="text-gray-400 font-bold text-xs uppercase">Total</span>
                         <span id="cart-total" class="text-4xl font-black text-indigo-600">¥0</span>
                     </div>
-                    <button onclick="submitOrder()" class="w-full mt-6 bg-indigo-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">確定・送信</button>
-                    <button onclick="clearCart(true)" class="w-full mt-4 text-gray-400 text-[10px] font-bold underline">リセット</button>
-                </div>
+                    <button id="submit-order" class="w-full mt-6 bg-indigo-600 disabled:bg-gray-300 disabled:shadow-none text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">確定・送信</button>
+                    <button id="clear-cart" class="w-full mt-4 text-gray-400 text-[10px] font-bold underline">リセット</button>
+                </aside>
             </div>
-        </div>
+        </section>
 
-        <!-- キッチン、履歴、設定画面は省略なしで維持 -->
-        <div id="kitchen" class="mode-panel">
+        <section id="kitchen" class="mode-panel">
             <h2 class="text-2xl font-black italic uppercase mb-6 text-black">Kitchen Queue</h2>
             <div id="order-queue" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-        </div>
-        <div id="history" class="mode-panel">
+        </section>
+
+        <section id="history" class="mode-panel">
             <h2 class="text-xl font-bold mb-4 text-green-700 italic border-b uppercase">History</h2>
             <div id="completed-list" class="space-y-2"></div>
-        </div>
-        <div id="admin" class="mode-panel">
+        </section>
+
+        <section id="admin" class="mode-panel">
             <div class="bg-white p-5 rounded-2xl shadow border mb-6 text-black">
                 <h2 class="font-bold mb-3 text-indigo-600 text-xs italic uppercase">Sync Settings</h2>
-                <input type="text" id="gas-url" placeholder="GAS URL" class="w-full p-3 border rounded-xl text-xs font-bold mb-3 text-black">
-                <button onclick="saveSettings()" class="w-full bg-indigo-100 text-indigo-700 py-3 rounded-xl font-bold text-sm">全員に同期</button>
+                <input type="text" id="gas-url" placeholder="GAS URL" class="w-full p-3 border rounded-xl text-xs font-bold mb-3 text-black" autocomplete="off">
+                <button id="save-settings" class="w-full bg-indigo-100 text-indigo-700 py-3 rounded-xl font-bold text-sm">全員に同期</button>
             </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-black">
                 <div class="bg-white p-4 rounded-xl shadow border">
                     <h2 class="font-bold mb-2 text-xs border-b pb-1 uppercase italic text-black">Edit Menus</h2>
                     <div id="menu-admin-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto"></div>
                     <div class="bg-gray-50 p-2 rounded-lg border-2 border-dashed border-gray-200">
-                        <input type="text" id="new-menu-name" placeholder="名称" class="w-full p-2 border rounded mb-1 text-xs text-black">
+                        <input type="text" id="new-menu-name" placeholder="名称" class="w-full p-2 border rounded mb-1 text-xs text-black" autocomplete="off">
                         <div class="flex gap-2">
-                            <input type="number" id="new-menu-price" placeholder="価格" class="flex-1 p-2 border rounded text-xs text-black">
+                            <input type="number" id="new-menu-price" placeholder="価格" min="0" class="flex-1 p-2 border rounded text-xs text-black">
                             <input type="color" id="new-menu-color" value="#6366f1" class="w-10 h-10 border rounded bg-white">
                         </div>
-                        <button onclick="addMenu()" class="w-full bg-indigo-600 text-white py-2 mt-2 rounded font-bold text-xs">追加</button>
+                        <button id="add-menu" class="w-full bg-indigo-600 text-white py-2 mt-2 rounded font-bold text-xs">追加</button>
                     </div>
                 </div>
+
                 <div class="bg-white p-4 rounded-xl shadow border text-black font-bold">
                     <h2 class="font-bold mb-2 text-xs border-b pb-1 uppercase italic text-green-600">Edit Toppings</h2>
                     <div id="topping-admin-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto"></div>
                     <div class="bg-gray-50 p-2 rounded-lg border-2 border-dashed border-gray-200">
-                        <input type="text" id="new-topping-name" placeholder="名称" class="w-full p-2 border rounded mb-1 text-xs text-black">
-                        <input type="number" id="new-topping-price" placeholder="価格" class="w-full p-2 border rounded text-xs text-black">
-                        <button onclick="addToppingMaster()" class="w-full bg-green-600 text-white py-2 mt-2 rounded font-bold text-xs">追加</button>
+                        <input type="text" id="new-topping-name" placeholder="名称" class="w-full p-2 border rounded mb-1 text-xs text-black" autocomplete="off">
+                        <input type="number" id="new-topping-price" placeholder="価格" min="0" class="w-full p-2 border rounded text-xs text-black">
+                        <button id="add-topping" class="w-full bg-green-600 text-white py-2 mt-2 rounded font-bold text-xs">追加</button>
                     </div>
                 </div>
             </div>
-            <div class="mt-12 text-center">
-                <button onclick="clearAllData()" class="text-red-500 font-bold text-[10px] underline hover:text-red-700">全データを完全にリセット</button>
+
+            <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button id="clear-orders" class="bg-white border border-orange-200 text-orange-600 rounded-xl py-3 font-bold text-xs underline">注文履歴だけリセット</button>
+                <button id="clear-all-data" class="bg-white border border-red-200 text-red-600 rounded-xl py-3 font-bold text-xs underline">全データを完全にリセット</button>
             </div>
-        </div>
+        </section>
     </main>
 
     <script>
-        // 設定、Firebaseなどのロジック（そのまま）
         const firebaseConfig = {
             apiKey: "AIzaSyBCEAZEtgA6NPf9I2H1BK-2QLwuDj3VeUs",
             authDomain: "kitppiaapp2.firebaseapp.com",
@@ -120,110 +146,443 @@
             messagingSenderId: "753995869602",
             appId: "1:753995869602:web:6dc63029c621c4f01616fb"
         };
+
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
-        let menuData = [], toppingData = [], orderData = [], gasUrl = "";
-        let cartItems = [], cartToppings = [];
 
-        db.ref('settings/gasUrl').on('value', snap => {
-            gasUrl = snap.val() || "";
-            const el = document.getElementById('gas-url'); if(el) el.value = gasUrl;
-        });
-        db.ref('menus').on('value', snap => { menuData = snap.val() || []; renderAll(); });
-        db.ref('toppings').on('value', snap => { toppingData = snap.val() || []; renderAll(); });
-        db.ref('orders').on('value', snap => {
-            const val = snap.val() || {};
-            orderData = Object.keys(val).map(k => ({ ...val[k], firebaseKey: k }));
-            renderAll();
-        });
+        let menuData = [];
+        let toppingData = [];
+        let orderData = [];
+        let gasUrl = "";
+        let cartItems = [];
+        let cartToppings = [];
+        let submitting = false;
+
+        const $ = (id) => document.getElementById(id);
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function normalizeList(value) {
+            if (Array.isArray(value)) return value.filter(Boolean);
+            if (!value || typeof value !== "object") return [];
+            return Object.values(value).filter(Boolean).sort((a, b) => {
+                const ao = Number(a.order ?? a.createdAt ?? a.id ?? 0);
+                const bo = Number(b.order ?? b.createdAt ?? b.id ?? 0);
+                return ao - bo;
+            });
+        }
+
+        function normalizeOrders(value) {
+            if (!value || typeof value !== "object") return [];
+            return Object.keys(value).map((key) => ({ ...value[key], firebaseKey: key }))
+                .sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+        }
+
+        function showToast(message) {
+            const toast = $("toast");
+            toast.innerText = message;
+            toast.className = "show";
+            setTimeout(() => { toast.className = ""; }, 3000);
+        }
 
         function switchMode(mode) {
-            document.querySelectorAll('.mode-panel').forEach(p => p.classList.remove('active'));
-            document.getElementById(mode).classList.add('active');
-            window.scrollTo(0,0);
+            document.querySelectorAll(".mode-panel").forEach((panel) => panel.classList.remove("active"));
+            document.querySelectorAll(".nav-button").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
+            $(mode).classList.add("active");
+            window.scrollTo(0, 0);
         }
-        function showToast(msg) {
-            const t = document.getElementById("toast"); t.innerText = msg;
-            t.className = "show"; setTimeout(() => t.className = "", 3000);
+
+        function setSubmitting(value) {
+            submitting = value;
+            $("submit-order").disabled = value;
+            $("submit-order").innerText = value ? "送信中..." : "確定・送信";
         }
-        function saveSettings() {
-            const url = document.getElementById('gas-url').value;
-            db.ref('settings/gasUrl').set(url).then(() => showToast("同期完了"));
+
+        function cartTotal() {
+            const itemTotal = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+            const toppingTotal = cartToppings.reduce((sum, item) => sum + Number(item.price || 0), 0);
+            return itemTotal + toppingTotal;
         }
-        function addMenu() {
-            const n = document.getElementById('new-menu-name').value, p = parseInt(document.getElementById('new-menu-price').value), c = document.getElementById('new-menu-color').value;
-            if (n && p) { menuData.push({ id: Date.now(), name: n, price: p, color: c }); db.ref('menus').set(menuData); document.getElementById('new-menu-name').value = ""; }
-        }
-        function addToppingMaster() {
-            const n = document.getElementById('new-topping-name').value, p = parseInt(document.getElementById('new-topping-price').value) || 0;
-            if (n) { toppingData.push({ id: Date.now(), name: n, price: p }); db.ref('toppings').set(toppingData); document.getElementById('new-topping-name').value = ""; }
-        }
-        function editItem(type, index, field, value) {
-            const list = (type === 'menu' ? menuData : toppingData);
-            list[index][field] = (field === 'price' ? parseInt(value) || 0 : value);
-            db.ref(type + 's').set(list);
-        }
-        function deleteItem(type, index) {
-            if(!confirm("削除しますか？")) return;
-            const target = (type === 'menu' ? menuData : toppingData);
-            target.splice(index, 1);
-            db.ref(type + 's').set(target);
-        }
-        function moveItem(type, index, dir) {
-            const list = (type === 'menu' ? menuData : toppingData);
-            if(index + dir < 0 || index + dir >= list.length) return;
-            const item = list.splice(index, 1)[0];
-            list.splice(index + dir, 0, item);
-            db.ref(type + 's').set(list);
-        }
-        function clearCart(showMsg = false) {
-            cartItems = []; cartToppings = [];
-            document.getElementById('order-memo').value = "";
+
+        function clearCart(showMessage = false) {
+            cartItems = [];
+            cartToppings = [];
+            $("order-memo").value = "";
             renderAll();
-            if(showMsg) showToast("リセット完了");
+            if (showMessage) showToast("リセット完了");
         }
 
-        // 【最重要】送信ロジックの修正
-        function submitOrder() {
-            if (cartItems.length === 0) return;
-            const tText = cartToppings.map(t => t.name).join(", "); // トッピング名だけを抽出
-            const nextId = orderData.length + 1;
-            const order = {
-                id: nextId,
-                items: cartItems.map(i => i.name).join(", "),
-                toppings: tText, // ← GASの data.toppings と一致させる
-                memo: document.getElementById('order-memo').value || "",
-                staff: document.getElementById('staff-name').value || "未記入",
-                total: cartItems.reduce((s,i)=>s+i.price,0) + cartToppings.reduce((s,t)=>s+t.price,0),
-                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
-                completed: false
-            };
-            db.ref('orders').push(order);
-            if(gasUrl) fetch(gasUrl, {method: "POST", mode: "no-cors", body: JSON.stringify(order)});
-            document.getElementById('display-order-id').innerText = "#" + nextId;
-            document.getElementById('number-overlay').style.display = 'flex';
-            clearCart(false);
+        function addToCart(index) {
+            const item = menuData[index];
+            if (!item) return;
+            cartItems.push({ id: item.id, name: item.name, price: Number(item.price || 0) });
+            renderAll();
         }
 
-        function toggleStatus(key) {
-            const o = orderData.find(x => x.firebaseKey === key);
-            db.ref('orders/' + key).update({ completed: !o.completed });
+        function addToppingToCart(index) {
+            const item = toppingData[index];
+            if (!item) return;
+            cartToppings.push({ id: item.id, name: item.name, price: Number(item.price || 0) });
+            renderAll();
         }
-        function clearAllData() {
-            if (confirm("全データをリセットします。宜しいですか？")) { db.ref('/').remove().then(() => location.reload()); }
+
+        function removeCartItem(type, index) {
+            if (type === "item") cartItems.splice(index, 1);
+            if (type === "topping") cartToppings.splice(index, 1);
+            renderAll();
         }
+
+        async function saveSettings() {
+            const url = $("gas-url").value.trim();
+            try {
+                await db.ref("settings/gasUrl").set(url);
+                showToast("同期完了");
+            } catch (error) {
+                console.error(error);
+                showToast("同期に失敗しました");
+            }
+        }
+
+        async function updateList(path, updater) {
+            const ref = db.ref(path);
+            await ref.transaction((current) => {
+                const list = normalizeList(current).map((item) => ({ ...item }));
+                const next = updater(list);
+                return Array.isArray(next) ? next : list;
+            });
+        }
+
+        async function addMenu() {
+            const name = $("new-menu-name").value.trim();
+            const price = Number($("new-menu-price").value);
+            const color = $("new-menu-color").value || "#6366f1";
+            if (!name || !Number.isFinite(price) || price < 0) {
+                showToast("名称と価格を確認してください");
+                return;
+            }
+            try {
+                await updateList("menus", (list) => {
+                    list.push({ id: Date.now(), name, price, color, createdAt: Date.now() });
+                    return list;
+                });
+                $("new-menu-name").value = "";
+                $("new-menu-price").value = "";
+                showToast("メニューを追加しました");
+            } catch (error) {
+                console.error(error);
+                showToast("追加に失敗しました");
+            }
+        }
+
+        async function addToppingMaster() {
+            const name = $("new-topping-name").value.trim();
+            const price = Number($("new-topping-price").value || 0);
+            if (!name || !Number.isFinite(price) || price < 0) {
+                showToast("名称と価格を確認してください");
+                return;
+            }
+            try {
+                await updateList("toppings", (list) => {
+                    list.push({ id: Date.now(), name, price, createdAt: Date.now() });
+                    return list;
+                });
+                $("new-topping-name").value = "";
+                $("new-topping-price").value = "";
+                showToast("トッピングを追加しました");
+            } catch (error) {
+                console.error(error);
+                showToast("追加に失敗しました");
+            }
+        }
+
+        async function editItem(type, index, field, value) {
+            const path = type === "menu" ? "menus" : "toppings";
+            try {
+                await updateList(path, (list) => {
+                    if (!list[index]) return list;
+                    if (field === "price") list[index][field] = Math.max(0, Number(value) || 0);
+                    else list[index][field] = String(value ?? "").trim();
+                    return list;
+                });
+            } catch (error) {
+                console.error(error);
+                showToast("更新に失敗しました");
+            }
+        }
+
+        async function deleteItem(type, index) {
+            if (!confirm("削除しますか？")) return;
+            const path = type === "menu" ? "menus" : "toppings";
+            try {
+                await updateList(path, (list) => {
+                    list.splice(index, 1);
+                    return list;
+                });
+                showToast("削除しました");
+            } catch (error) {
+                console.error(error);
+                showToast("削除に失敗しました");
+            }
+        }
+
+        async function moveItem(type, index, direction) {
+            const path = type === "menu" ? "menus" : "toppings";
+            try {
+                await updateList(path, (list) => {
+                    const nextIndex = index + direction;
+                    if (nextIndex < 0 || nextIndex >= list.length) return list;
+                    const item = list.splice(index, 1)[0];
+                    list.splice(nextIndex, 0, item);
+                    return list;
+                });
+            } catch (error) {
+                console.error(error);
+                showToast("並び替えに失敗しました");
+            }
+        }
+
+        async function issueOrderId() {
+            const maxExistingId = orderData.reduce((max, order) => Math.max(max, Number(order.id || 0)), 0);
+            const result = await db.ref("counters/lastOrderId").transaction((current) => {
+                const base = Math.max(Number(current || 0), maxExistingId);
+                return base + 1;
+            });
+            return Number(result.snapshot.val());
+        }
+
+        async function submitOrder() {
+            if (submitting) return;
+            if (cartItems.length === 0) {
+                showToast("商品を選んでください");
+                return;
+            }
+
+            setSubmitting(true);
+            const orderItems = cartItems.map((item) => ({ ...item }));
+            const orderToppings = cartToppings.map((item) => ({ ...item }));
+
+            try {
+                const nextId = await issueOrderId();
+                const order = {
+                    id: nextId,
+                    items: orderItems.map((item) => item.name).join(", "),
+                    toppings: orderToppings.map((item) => item.name).join(", "),
+                    itemDetails: orderItems,
+                    toppingDetails: orderToppings,
+                    memo: $("order-memo").value.trim(),
+                    staff: $("staff-name").value.trim() || "未記入",
+                    total: cartTotal(),
+                    time: new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }),
+                    createdAt: firebase.database.ServerValue.TIMESTAMP,
+                    completed: false
+                };
+
+                await db.ref("orders").push(order);
+
+                if (gasUrl) {
+                    fetch(gasUrl, {
+                        method: "POST",
+                        mode: "no-cors",
+                        headers: { "Content-Type": "text/plain;charset=utf-8" },
+                        body: JSON.stringify(order)
+                    }).catch((error) => {
+                        console.warn("GAS送信に失敗しました", error);
+                        showToast("Firebase保存済み / GAS送信は要確認");
+                    });
+                }
+
+                $("display-order-id").innerText = "#" + nextId;
+                $("number-overlay").style.display = "flex";
+                clearCart(false);
+            } catch (error) {
+                console.error(error);
+                showToast("送信に失敗しました。通信を確認してください");
+            } finally {
+                setSubmitting(false);
+            }
+        }
+
+        async function toggleStatus(key) {
+            const order = orderData.find((item) => item.firebaseKey === key);
+            if (!order) return;
+            try {
+                await db.ref("orders/" + key).update({ completed: !order.completed });
+            } catch (error) {
+                console.error(error);
+                showToast("更新に失敗しました");
+            }
+        }
+
+        async function clearOrders() {
+            const message = "注文履歴だけリセットします。メニューとGAS URLは残ります。よろしいですか？";
+            if (!confirm(message)) return;
+            try {
+                await db.ref("orders").remove();
+                await db.ref("counters/lastOrderId").set(0);
+                showToast("注文履歴をリセットしました");
+            } catch (error) {
+                console.error(error);
+                showToast("リセットに失敗しました");
+            }
+        }
+
+        async function clearAllData() {
+            const first = confirm("全データをリセットします。メニュー、トッピング、注文、GAS URLが消えます。");
+            if (!first) return;
+            const second = prompt("本当に消す場合は RESET と入力してください");
+            if (second !== "RESET") {
+                showToast("キャンセルしました");
+                return;
+            }
+            try {
+                await db.ref("/").remove();
+                location.reload();
+            } catch (error) {
+                console.error(error);
+                showToast("リセットに失敗しました");
+            }
+        }
+
         function renderAll() {
-            document.getElementById('menu-list').innerHTML = menuData.map(m => `<button onclick='cartItems.push(${JSON.stringify(m)});renderAll();' style="background-color: ${m.color}" class="p-4 rounded-2xl shadow-sm font-bold text-black h-24 text-xs active:scale-95 transition-all font-bold text-black">${m.name}<br>¥${m.price}</button>`).join('');
-            document.getElementById('topping-list').innerHTML = toppingData.map(t => `<button onclick='cartToppings.push(${JSON.stringify(t)});renderAll();' class="px-4 py-2 bg-white border rounded-full text-[10px] font-bold text-black shadow-sm mb-1">+ ${t.name} (¥${t.price})</button>`).join('');
-            const total = cartItems.reduce((s,i)=>s+i.price,0) + cartToppings.reduce((s,t)=>s+t.price,0);
-            document.getElementById('cart-total').innerText = `¥${total.toLocaleString()}`;
-            document.getElementById('cart-display').innerHTML = cartItems.map(i => `<div class="flex justify-between font-bold text-black"><span>${i.name}</span><span>¥${i.price}</span></div>`).join('') + cartToppings.map(t => `<div class="text-indigo-500 italic text-[10px] font-bold">+ ${t.name}</div>`).join('');
-            const queue = orderData.filter(o => !o.completed);
-            document.getElementById('order-queue').innerHTML = queue.map(o => `<div class="bg-white p-6 rounded-3xl shadow-xl border-l-[12px] border-indigo-600 mb-4 text-black"><div class="flex justify-between items-start mb-1"><span class="text-5xl font-black italic text-indigo-900">#${o.id}</span></div><div class="text-2xl font-black text-black">${o.items}</div><div class="text-indigo-600 font-bold text-sm">${o.toppings ? '+ ' + o.toppings : ''}</div>${o.memo ? `<div class="text-gray-500 text-xs mt-1 bg-gray-50 p-2 rounded italic font-bold text-black">MEMO: ${o.memo}</div>` : ''}<button onclick="toggleStatus('${o.firebaseKey}')" class="w-full bg-gray-900 text-white py-5 rounded-2xl font-black mt-4">提供完了</button></div>`).join('');
-            document.getElementById('completed-list').innerHTML = orderData.filter(o => o.completed).reverse().slice(0, 5).map(o => `<div class="bg-white p-3 rounded-xl border flex justify-between items-center text-xs mb-1 text-black font-bold font-medium font-bold text-black"><span>#${o.id} ${o.items}</span><button onclick="toggleStatus('${o.firebaseKey}')" class="text-indigo-600 underline">戻す</button></div>`).join('');
-            document.getElementById('menu-admin-list').innerHTML = menuData.map((m, i) => `<div class="flex flex-col bg-gray-50 p-2 rounded border gap-1 mb-2 text-black font-bold text-black"><input type="text" value="${m.name}" onchange="editItem('menu', ${i}, 'name', this.value)" class="p-1 text-[10px] border rounded font-bold text-black"><input type="number" value="${m.price}" onchange="editItem('menu', ${i}, 'price', this.value)" class="p-1 text-[10px] border rounded font-bold text-black"><div class="flex justify-end gap-1"><button onclick="moveItem('menu', ${i}, -1)" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↑</button><button onclick="moveItem('menu', ${i}, 1)" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↓</button><button onclick="deleteItem('menu', ${i})" class="p-1 px-2 bg-red-100 text-red-600 rounded">×</button></div></div>`).join('');
-            document.getElementById('topping-admin-list').innerHTML = toppingData.map((t, i) => `<div class="flex flex-col bg-gray-50 p-2 rounded border gap-1 mb-2 text-black font-bold text-black"><input type="text" value="${t.name}" onchange="editItem('topping', ${i}, 'name', this.value)" class="p-1 text-[10px] border rounded font-bold text-black"><input type="number" value="${t.price}" onchange="editItem('topping', ${i}, 'price', this.value)" class="p-1 text-[10px] border rounded font-bold text-black"><div class="flex justify-end gap-1"><button onclick="moveItem('topping', ${i}, -1)" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↑</button><button onclick="moveItem('topping', ${i}, 1)" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↓</button><button onclick="deleteItem('topping', ${i})" class="p-1 px-2 bg-red-100 text-red-600 rounded">×</button></div></div>`).join('');
+            $("menu-list").innerHTML = menuData.map((item, index) => `
+                <button data-action="add-menu-cart" data-index="${index}" style="background-color: ${escapeHtml(item.color || "#6366f1")}" class="p-4 rounded-2xl shadow-sm font-black text-black h-24 text-xs active:scale-95 transition-all">
+                    ${escapeHtml(item.name)}<br>¥${Number(item.price || 0).toLocaleString()}
+                </button>
+            `).join("") || `<div class="col-span-full text-center text-xs font-bold text-gray-400 py-8">設定画面でメニューを追加してください</div>`;
+
+            $("topping-list").innerHTML = toppingData.map((item, index) => `
+                <button data-action="add-topping-cart" data-index="${index}" class="px-4 py-2 bg-white border rounded-full text-[10px] font-bold text-black shadow-sm mb-1">
+                    + ${escapeHtml(item.name)} (¥${Number(item.price || 0).toLocaleString()})
+                </button>
+            `).join("");
+
+            $("cart-total").innerText = "¥" + cartTotal().toLocaleString();
+
+            const cartHtml = [
+                ...cartItems.map((item, index) => `
+                    <div class="flex justify-between gap-2 font-bold text-black">
+                        <span>${escapeHtml(item.name)}</span>
+                        <span class="shrink-0">¥${Number(item.price || 0).toLocaleString()}
+                            <button data-action="remove-cart-item" data-type="item" data-index="${index}" class="ml-1 text-red-400">×</button>
+                        </span>
+                    </div>
+                `),
+                ...cartToppings.map((item, index) => `
+                    <div class="flex justify-between gap-2 text-indigo-500 italic text-[10px] font-bold">
+                        <span>+ ${escapeHtml(item.name)}</span>
+                        <button data-action="remove-cart-item" data-type="topping" data-index="${index}" class="text-red-400">×</button>
+                    </div>
+                `)
+            ].join("");
+            $("cart-display").innerHTML = cartHtml || `<div class="text-center text-gray-300 font-bold pt-6">商品を選択</div>`;
+
+            const queue = orderData.filter((order) => !order.completed);
+            $("order-queue").innerHTML = queue.map((order) => `
+                <article class="bg-white p-6 rounded-3xl shadow-xl border-l-[12px] border-indigo-600 mb-4 text-black">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="text-5xl font-black italic text-indigo-900">#${escapeHtml(order.id)}</span>
+                        <span class="text-xs font-bold text-gray-400">${escapeHtml(order.time || "")}</span>
+                    </div>
+                    <div class="text-2xl font-black text-black">${escapeHtml(order.items)}</div>
+                    <div class="text-indigo-600 font-bold text-sm">${order.toppings ? "+ " + escapeHtml(order.toppings) : ""}</div>
+                    ${order.memo ? `<div class="text-gray-600 text-xs mt-2 bg-gray-50 p-2 rounded italic font-bold">MEMO: ${escapeHtml(order.memo)}</div>` : ""}
+                    <div class="mt-2 text-[10px] font-bold text-gray-400">担当: ${escapeHtml(order.staff || "未記入")} / ¥${Number(order.total || 0).toLocaleString()}</div>
+                    <button data-action="toggle-status" data-key="${escapeHtml(order.firebaseKey)}" class="w-full bg-gray-900 text-white py-5 rounded-2xl font-black mt-4">提供完了</button>
+                </article>
+            `).join("") || `<div class="text-center text-sm font-bold text-gray-400 py-10">未提供の注文はありません</div>`;
+
+            $("completed-list").innerHTML = orderData.filter((order) => order.completed).reverse().slice(0, 30).map((order) => `
+                <div class="bg-white p-3 rounded-xl border flex justify-between items-center text-xs mb-1 text-black font-bold">
+                    <span>#${escapeHtml(order.id)} ${escapeHtml(order.items)}</span>
+                    <button data-action="toggle-status" data-key="${escapeHtml(order.firebaseKey)}" class="text-indigo-600 underline">戻す</button>
+                </div>
+            `).join("") || `<div class="text-center text-sm font-bold text-gray-400 py-10">履歴はまだありません</div>`;
+
+            $("menu-admin-list").innerHTML = menuData.map((item, index) => `
+                <div class="flex flex-col bg-gray-50 p-2 rounded border gap-1 mb-2 text-black font-bold">
+                    <input data-action="edit-item" data-type="menu" data-index="${index}" data-field="name" type="text" value="${escapeHtml(item.name)}" class="p-1 text-[10px] border rounded font-bold text-black">
+                    <input data-action="edit-item" data-type="menu" data-index="${index}" data-field="price" type="number" min="0" value="${Number(item.price || 0)}" class="p-1 text-[10px] border rounded font-bold text-black">
+                    <input data-action="edit-item" data-type="menu" data-index="${index}" data-field="color" type="color" value="${escapeHtml(item.color || "#6366f1")}" class="h-8 border rounded bg-white">
+                    <div class="flex justify-end gap-1">
+                        <button data-action="move-item" data-type="menu" data-index="${index}" data-dir="-1" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↑</button>
+                        <button data-action="move-item" data-type="menu" data-index="${index}" data-dir="1" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↓</button>
+                        <button data-action="delete-item" data-type="menu" data-index="${index}" class="p-1 px-2 bg-red-100 text-red-600 rounded">×</button>
+                    </div>
+                </div>
+            `).join("");
+
+            $("topping-admin-list").innerHTML = toppingData.map((item, index) => `
+                <div class="flex flex-col bg-gray-50 p-2 rounded border gap-1 mb-2 text-black font-bold">
+                    <input data-action="edit-item" data-type="topping" data-index="${index}" data-field="name" type="text" value="${escapeHtml(item.name)}" class="p-1 text-[10px] border rounded font-bold text-black">
+                    <input data-action="edit-item" data-type="topping" data-index="${index}" data-field="price" type="number" min="0" value="${Number(item.price || 0)}" class="p-1 text-[10px] border rounded font-bold text-black">
+                    <div class="flex justify-end gap-1">
+                        <button data-action="move-item" data-type="topping" data-index="${index}" data-dir="-1" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↑</button>
+                        <button data-action="move-item" data-type="topping" data-index="${index}" data-dir="1" class="p-1 px-2 bg-gray-200 rounded text-[10px]">↓</button>
+                        <button data-action="delete-item" data-type="topping" data-index="${index}" class="p-1 px-2 bg-red-100 text-red-600 rounded">×</button>
+                    </div>
+                </div>
+            `).join("");
         }
+
+        document.addEventListener("click", (event) => {
+            const button = event.target.closest("button");
+            if (!button) return;
+
+            const action = button.dataset.action;
+            if (button.dataset.mode) switchMode(button.dataset.mode);
+            if (action === "add-menu-cart") addToCart(Number(button.dataset.index));
+            if (action === "add-topping-cart") addToppingToCart(Number(button.dataset.index));
+            if (action === "remove-cart-item") removeCartItem(button.dataset.type, Number(button.dataset.index));
+            if (action === "toggle-status") toggleStatus(button.dataset.key);
+            if (action === "move-item") moveItem(button.dataset.type, Number(button.dataset.index), Number(button.dataset.dir));
+            if (action === "delete-item") deleteItem(button.dataset.type, Number(button.dataset.index));
+        });
+
+        document.addEventListener("change", (event) => {
+            const input = event.target.closest("[data-action='edit-item']");
+            if (!input) return;
+            editItem(input.dataset.type, Number(input.dataset.index), input.dataset.field, input.value);
+        });
+
+        $("number-overlay").addEventListener("click", () => { $("number-overlay").style.display = "none"; });
+        $("number-overlay").addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") $("number-overlay").style.display = "none";
+        });
+        $("submit-order").addEventListener("click", submitOrder);
+        $("clear-cart").addEventListener("click", () => clearCart(true));
+        $("save-settings").addEventListener("click", saveSettings);
+        $("add-menu").addEventListener("click", addMenu);
+        $("add-topping").addEventListener("click", addToppingMaster);
+        $("clear-orders").addEventListener("click", clearOrders);
+        $("clear-all-data").addEventListener("click", clearAllData);
+
+        db.ref("settings/gasUrl").on("value", (snapshot) => {
+            gasUrl = snapshot.val() || "";
+            $("gas-url").value = gasUrl;
+        });
+
+        db.ref("menus").on("value", (snapshot) => {
+            menuData = normalizeList(snapshot.val());
+            renderAll();
+        });
+
+        db.ref("toppings").on("value", (snapshot) => {
+            toppingData = normalizeList(snapshot.val());
+            renderAll();
+        });
+
+        db.ref("orders").on("value", (snapshot) => {
+            orderData = normalizeOrders(snapshot.val());
+            renderAll();
+        });
+
         renderAll();
     </script>
 </body>
