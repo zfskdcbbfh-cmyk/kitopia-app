@@ -389,12 +389,11 @@
                 if (gasUrl) {
                     fetch(gasUrl, {
                         method: "POST",
-                        mode: "no-cors",
                         headers: { "Content-Type": "text/plain;charset=utf-8" },
-                        body: JSON.stringify(order)
+                        body: JSON.stringify(order),
+                        redirect: "follow"
                     }).catch((error) => {
                         console.warn("GAS送信に失敗しました", error);
-                        showToast("Firebase保存済み / GAS送信は要確認");
                     });
                 }
 
